@@ -19,16 +19,50 @@ except:
 @app.route("/")
 def index():
     try:
-        store_record = {"name": "A", "lastName": "B"}
-        dbResponse = db.store_info.insert_one(
-            store_record
+        params = {
+            "r": "50",
+            "requestType": "dotcom",
+            "s": "20",
+            "p": 1,
+            "q": "78723",
+            "lat": "",
+            "lng": "",
+            "zip": "78723",
+        }
+
+        find_locations_api = (
+            "https://www.walgreens.com/locator/v1/stores/search?requestor=search"
+        )
+        find_slots_api = (
+            "https://www.walgreens.com/findcarecovidsvc/svc/v2/scheduling/slots?o=acs"
+        )
+        loc = requests.post(find_locations_api, json=params)
+
+        # store stores and slot times ranked by location
+        store_info_ranked_by_location = loc.json()
+        store_results = {}
+        for idx in range(len(store_info_ranked_by_location["results"])):
+            store_dict_and_results = []
+            store_number_result = store_info_ranked_by_location["results"][idx][
+                "storeNumber"
+            ]
+            store_number = {"location": str(store_number_result)}
+            req = requests.post(find_slots_api, json=store_number)
+            store_dict_and_results.append(store_number_result)
+            store_dict_and_results.append(req.json())
+            key = str(idx)
+            store_results[key] = store_dict_and_results
+        dbResponse_store = db.store_info.insert_one(
+            store_info_ranked_by_location
         )  # created the collection in walgreens
-        # print(dbResponse.inserted_id)
-        # for attr in dir(dbResponse):
-        #     print(attr)
+        dbResponse_slot = db.test_timeslots.insert_one(store_results)
         return Response(
             response=json.dumps(
-                {"message": "record created", "id": f"dbResponse.inserted_id"}
+                {
+                    "message": "record created",
+                    "id_store": f"{dbResponse_store.inserted_id}",
+                    "id_slot": f"{dbResponse_slot.inserted_id}",
+                }
             ),
             status=200,
             mimetype="application/json",
